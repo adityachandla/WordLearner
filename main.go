@@ -37,90 +37,95 @@ func main() {
 type LineProcessor struct {
 	left         WordMeaning
 	right        WordMeaning
-	lineIdx      int
-	line         string
-	matches      []string
-	phrases      []string
 	wordMeanings []WordMeaning
+}
+
+type LineInfo struct {
+	line    string
+	lineIdx int
+	matches []string
+	phrases []string
 }
 
 func getWordMeanings(lines []string) []WordMeaning {
 	processor := LineProcessor{}
 	numberRegex := regexp.MustCompile("\\d+\\.")
 	for i, line := range lines {
-		processor.lineIdx = i
-		processor.line = line
-		processor.matches = numberRegex.FindAllString(line, -1)
-		processor.phrases = getPhrases(line)
-		if len(processor.matches) == 0 {
-			handleZeroMatches(&processor)
-		} else if len(processor.matches) == 1 {
-			handleSingleMatch(&processor)
+		lineInfo := LineInfo{
+			lineIdx: i,
+			line:    line,
+			matches: numberRegex.FindAllString(line, -1),
+			phrases: getPhrases(line),
+		}
+		if len(lineInfo.matches) == 0 {
+			processor.handleZeroMatches(&lineInfo)
+		} else if len(lineInfo.matches) == 1 {
+			processor.handleSingleMatch(&lineInfo)
 		} else {
-			handleTwoMatches(&processor)
+			processor.handleTwoMatches(&lineInfo)
 		}
 	}
 	return processor.wordMeanings
 }
 
-func handleZeroMatches(processor *LineProcessor) {
-	if len(processor.phrases) == 1 {
-		if isRightColumn(processor.line) {
-			processor.right.meaning += " " + processor.phrases[0]
+func (processor *LineProcessor) handleZeroMatches(lineInfo *LineInfo) {
+	if len(lineInfo.phrases) == 1 {
+		if lineInfo.isRightColumn() {
+			processor.right.meaning += " " + lineInfo.phrases[0]
 		} else {
-			processor.left.meaning += " " + processor.phrases[0]
+			processor.left.meaning += " " + lineInfo.phrases[0]
 		}
-	} else if len(processor.phrases) == 2 {
-		processor.left.meaning += " " + processor.phrases[0]
-		processor.right.meaning += " " + processor.phrases[1]
+	} else if len(lineInfo.phrases) == 2 {
+		processor.left.meaning += " " + lineInfo.phrases[0]
+		processor.right.meaning += " " + lineInfo.phrases[1]
 	}
 }
 
-func handleSingleMatch(processor *LineProcessor) {
-	matchedNum, _ := strconv.Atoi(strings.TrimRight(processor.matches[0], "."))
+func (processor *LineProcessor) handleSingleMatch(lineInfo *LineInfo) {
+	matchedNum, _ := strconv.Atoi(strings.TrimRight(lineInfo.matches[0], "."))
 	if matchedNum == processor.left.number+1 {
 		processor.wordMeanings = append(processor.wordMeanings, processor.left)
 		processor.left = WordMeaning{
 			number:  matchedNum,
-			word:    processor.phrases[1],
-			meaning: processor.phrases[2],
+			word:    lineInfo.phrases[1],
+			meaning: lineInfo.phrases[2],
 		}
-		if len(processor.phrases) == 4 {
-			processor.right.meaning += " " + processor.phrases[3]
+		if len(lineInfo.phrases) == 4 {
+			processor.right.meaning += " " + lineInfo.phrases[3]
 		}
 	} else if matchedNum == processor.right.number+1 {
 		processor.wordMeanings = append(processor.wordMeanings, processor.right)
 		processor.right = WordMeaning{number: matchedNum}
-		if len(processor.phrases) == 4 {
-			processor.right.word = processor.phrases[2]
-			processor.right.meaning = processor.phrases[3]
-			processor.left.meaning += " " + processor.phrases[0]
-		} else if len(processor.phrases) == 3 {
-			processor.right.word = processor.phrases[1]
-			processor.right.meaning = processor.phrases[2]
+		if len(lineInfo.phrases) == 4 {
+			processor.right.word = lineInfo.phrases[2]
+			processor.right.meaning = lineInfo.phrases[3]
+			processor.left.meaning += " " + lineInfo.phrases[0]
+		} else if len(lineInfo.phrases) == 3 {
+			processor.right.word = lineInfo.phrases[1]
+			processor.right.meaning = lineInfo.phrases[2]
 		}
 	}
 }
 
-func handleTwoMatches(processor *LineProcessor) {
-	if processor.lineIdx != 0 {
+func (processor *LineProcessor) handleTwoMatches(lineInfo *LineInfo) {
+	if lineInfo.lineIdx != 0 {
 		processor.wordMeanings = append(processor.wordMeanings, processor.right)
 		processor.wordMeanings = append(processor.wordMeanings, processor.left)
 	}
-	processor.left.number, _ = strconv.Atoi(strings.TrimRight(processor.matches[0], "."))
-	processor.right.number, _ = strconv.Atoi(strings.TrimRight(processor.matches[1], "."))
-	processor.left.word = processor.phrases[1]
-	processor.left.meaning = processor.phrases[2]
+	processor.left.number, _ = strconv.Atoi(strings.TrimRight(lineInfo.matches[0], "."))
+	processor.right.number, _ = strconv.Atoi(strings.TrimRight(lineInfo.matches[1], "."))
+	processor.left.word = lineInfo.phrases[1]
+	processor.left.meaning = lineInfo.phrases[2]
 
-	processor.right.word = processor.phrases[4]
-	processor.right.meaning = processor.phrases[5]
+	processor.right.word = lineInfo.phrases[4]
+	processor.right.meaning = lineInfo.phrases[5]
 }
 
-func isRightColumn(line string) bool {
-	if len(line) < 50 {
+func (lineInfo *LineInfo) isRightColumn() bool {
+	if len(lineInfo.line) < 50 {
 		return false
 	}
-	for _, b := range line[:50] {
+	for _, b := range lineInfo.line[:50] {
 		if b != ' ' {
 			return false
 		}
