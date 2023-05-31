@@ -34,72 +34,86 @@ func main() {
 	}
 }
 
+type LineProcessor struct {
+	left         WordMeaning
+	right        WordMeaning
+	lineIdx      int
+	line         string
+	matches      []string
+	phrases      []string
+	wordMeanings []WordMeaning
+}
+
 func getWordMeanings(lines []string) []WordMeaning {
-	finalWordMeanings := make([]WordMeaning, 0, 1000)
-	left := WordMeaning{}
-	right := WordMeaning{}
+	processor := LineProcessor{}
 	numberRegex := regexp.MustCompile("\\d+\\.")
 	for i, line := range lines {
-		matches := numberRegex.FindAllString(line, -1)
-		phrases := getPhrases(line)
-		if len(matches) == 0 {
-			//No new words put stuff in existing words
-			if len(phrases) == 1 {
-				if isRightColumn(line) {
-					right.meaning += " " + phrases[0]
-				} else {
-					left.meaning += " " + phrases[0]
-				}
-			} else if len(phrases) == 2 {
-				left.meaning += " " + phrases[0]
-				right.meaning += " " + phrases[1]
-			}
-		} else if len(matches) == 1 {
-			//One of the words has ended 3 or 4
-			matchedNum, _ := strconv.Atoi(strings.TrimRight(matches[0], "."))
-			if matchedNum == left.number+1 {
-				finalWordMeanings = append(finalWordMeanings, left)
-				left = WordMeaning{
-					number:  matchedNum,
-					word:    phrases[1],
-					meaning: phrases[2],
-				}
-				if len(phrases) == 4 {
-					right.meaning += " " + phrases[3]
-				}
-			} else if matchedNum == right.number+1 {
-				finalWordMeanings = append(finalWordMeanings, right)
-				right = WordMeaning{number: matchedNum}
-				if len(phrases) == 4 {
-					right.word = phrases[2]
-					right.meaning = phrases[3]
-					left.meaning += " " + phrases[0]
-				} else if len(phrases) == 3 {
-					right.word = phrases[1]
-					right.meaning = phrases[2]
-				}
-			}
-		} else if len(matches) == 2 {
-			//Both words have ended
-			if i != 0 {
-				finalWordMeanings = append(finalWordMeanings, left)
-				finalWordMeanings = append(finalWordMeanings, right)
-				left = WordMeaning{}
-				right = WordMeaning{}
-			}
-			left.number, _ = strconv.Atoi(strings.TrimRight(matches[0], "."))
-			right.number, _ = strconv.Atoi(strings.TrimRight(matches[1], "."))
-			if len(phrases) != 6 {
-				panic("Invalid sequence")
-			}
-			left.word = phrases[1]
-			left.meaning = phrases[2]
-
-			right.word = phrases[4]
-			right.meaning = phrases[5]
+		processor.lineIdx = i
+		processor.line = line
+		processor.matches = numberRegex.FindAllString(line, -1)
+		processor.phrases = getPhrases(line)
+		if len(processor.matches) == 0 {
+			handleZeroMatches(&processor)
+		} else if len(processor.matches) == 1 {
+			handleSingleMatch(&processor)
+		} else {
+			handleTwoMatches(&processor)
 		}
 	}
-	return finalWordMeanings
+	return processor.wordMeanings
+}
+
+func handleZeroMatches(processor *LineProcessor) {
+	if len(processor.phrases) == 1 {
+		if isRightColumn(processor.line) {
+			processor.right.meaning += " " + processor.phrases[0]
+		} else {
+			processor.left.meaning += " " + processor.phrases[0]
+		}
+	} else if len(processor.phrases) == 2 {
+		processor.left.meaning += " " + processor.phrases[0]
+		processor.right.meaning += " " + processor.phrases[1]
+	}
+}
+
+func handleSingleMatch(processor *LineProcessor) {
+	matchedNum, _ := strconv.Atoi(strings.TrimRight(processor.matches[0], "."))
+	if matchedNum == processor.left.number+1 {
+		processor.wordMeanings = append(processor.wordMeanings, processor.left)
+		processor.left = WordMeaning{
+			number:  matchedNum,
+			word:    processor.phrases[1],
+			meaning: processor.phrases[2],
+		}
+		if len(processor.phrases) == 4 {
+			processor.right.meaning += " " + processor.phrases[3]
+		}
+	} else if matchedNum == processor.right.number+1 {
+		processor.wordMeanings = append(processor.wordMeanings, processor.right)
+		processor.right = WordMeaning{number: matchedNum}
+		if len(processor.phrases) == 4 {
+			processor.right.word = processor.phrases[2]
+			processor.right.meaning = processor.phrases[3]
+			processor.left.meaning += " " + processor.phrases[0]
+		} else if len(processor.phrases) == 3 {
+			processor.right.word = processor.phrases[1]
+			processor.right.meaning = processor.phrases[2]
+		}
+	}
+}
+
+func handleTwoMatches(processor *LineProcessor) {
+	if processor.lineIdx != 0 {
+		processor.wordMeanings = append(processor.wordMeanings, processor.right)
+		processor.wordMeanings = append(processor.wordMeanings, processor.left)
+	}
+	processor.left.number, _ = strconv.Atoi(strings.TrimRight(processor.matches[0], "."))
+	processor.right.number, _ = strconv.Atoi(strings.TrimRight(processor.matches[1], "."))
+	processor.left.word = processor.phrases[1]
+	processor.left.meaning = processor.phrases[2]
+
+	processor.right.word = processor.phrases[4]
+	processor.right.meaning = processor.phrases[5]
 }
 
 func isRightColumn(line string) bool {
